@@ -1,0 +1,7 @@
+httpx
+mcp
+PyJWT
+cryptography
+python-dotenv
+pytest
+pytest-asyncio

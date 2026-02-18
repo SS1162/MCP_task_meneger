@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "github-engineer": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["m:\\practic\\github_engineer.py"]
+    }
+  }
+}
