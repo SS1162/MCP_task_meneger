@@ -350,3 +350,119 @@ async def test_find_similar_bug_github_error(all_creds):
          patch("github_engineer._gh", new_callable=AsyncMock, side_effect=Exception("API fail")):
         result = await ge.find_similar_bug_or_code("login bug")
     assert "⚠️" in result
+
+
+# ── open_bug ──────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_open_bug_missing_creds():
+    result = await ge.open_bug("crash on save", "steps to reproduce...")
+    assert "❌" in result
+
+@pytest.mark.asyncio
+async def test_open_bug_empty_title(all_creds):
+    result = await ge.open_bug("", "some description")
+    assert "❌" in result
+    assert "title" in result.lower()
+
+@pytest.mark.asyncio
+async def test_open_bug_empty_description(all_creds):
+    result = await ge.open_bug("crash on save", "")
+    assert "❌" in result
+    assert "description" in result.lower()
+
+@pytest.mark.asyncio
+async def test_open_bug_shows_permission_prompt(all_creds):
+    result = await ge.open_bug("crash on save", "app crashes when saving a file")
+    assert "Permission required" in result
+    assert "crash on save" in result
+    assert "bug" in result
+
+@pytest.mark.asyncio
+async def test_open_bug_includes_extra_labels_in_prompt(all_creds):
+    result = await ge.open_bug("crash on save", "app crashes", extra_labels="high,frontend")
+    assert "high" in result
+    assert "frontend" in result
+
+@pytest.mark.asyncio
+async def test_open_bug_truncates_long_description_in_prompt(all_creds):
+    result = await ge.open_bug("title", "x" * 200)
+    assert "..." in result
+
+
+# ── confirm_open_bug ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_missing_creds():
+    result = await ge.confirm_open_bug("crash on save", "steps...")
+    assert "❌" in result
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_empty_title(all_creds):
+    result = await ge.confirm_open_bug("", "some description")
+    assert "❌" in result
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_empty_description(all_creds):
+    result = await ge.confirm_open_bug("title", "")
+    assert "❌" in result
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_creates_issue(all_creds):
+    fake_created_issue = {
+        "number": 55,
+        "title": "crash on save",
+        "html_url": "https://github.com/owner/repo/issues/55",
+    }
+    with patch("github_engineer._get_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("github_engineer._gh", new_callable=AsyncMock, return_value=fake_created_issue), \
+         patch("github_engineer._ensure_label", new_callable=AsyncMock):
+        result = await ge.confirm_open_bug("crash on save", "app crashes when saving a file")
+    assert "✅" in result
+    assert "#55" in result
+    assert "https://github.com/owner/repo/issues/55" in result
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_always_includes_bug_label(all_creds):
+    created = {"number": 56, "title": "bug title", "html_url": "http://x"}
+    call_args = {}
+
+    async def mock_gh(method, path, token, **kwargs):
+        if method == "post" and "/issues" in path:
+            call_args.update(kwargs)
+        return created
+
+    with patch("github_engineer._get_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("github_engineer._gh", side_effect=mock_gh), \
+         patch("github_engineer._ensure_label", new_callable=AsyncMock):
+        await ge.confirm_open_bug("bug title", "desc")
+
+    assert "bug" in call_args.get("json", {}).get("labels", [])
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_adds_extra_labels(all_creds):
+    created = {"number": 57, "title": "bug title", "html_url": "http://x"}
+    call_args = {}
+
+    async def mock_gh(method, path, token, **kwargs):
+        if method == "post" and "/issues" in path:
+            call_args.update(kwargs)
+        return created
+
+    with patch("github_engineer._get_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("github_engineer._gh", side_effect=mock_gh), \
+         patch("github_engineer._ensure_label", new_callable=AsyncMock):
+        await ge.confirm_open_bug("bug title", "desc", extra_labels="high,frontend")
+
+    labels = call_args.get("json", {}).get("labels", [])
+    assert "bug" in labels
+    assert "high" in labels
+    assert "frontend" in labels
+
+@pytest.mark.asyncio
+async def test_confirm_open_bug_github_error(all_creds):
+    with patch("github_engineer._get_token", new_callable=AsyncMock, return_value="tok"), \
+         patch("github_engineer._gh", new_callable=AsyncMock, side_effect=Exception("API fail")), \
+         patch("github_engineer._ensure_label", new_callable=AsyncMock):
+        result = await ge.confirm_open_bug("crash on save", "desc")
+    assert "❌" in result

@@ -206,6 +206,54 @@ setup_credential(key="GITHUB_APP_ID", value="123456")
 
 ---
 
+### `open_bug`
+Shows a permission prompt before creating a new bug issue. Does nothing until you confirm.
+
+**Input:**
+- `title` — short title for the bug (e.g. `"Login fails on mobile"`)
+- `description` — full bug description, steps to reproduce, expected vs actual behaviour
+- `extra_labels` *(optional)* — comma-separated extra labels (e.g. `"high,frontend"`)
+
+**Example call:**
+```
+open_bug(title="Login fails on mobile", description="Steps: 1. Open app on iOS 2. Tap login 3. App crashes", extra_labels="high")
+```
+
+**Example response:**
+```
+⚠️ Permission required — I am about to:
+   🐛 Create issue  : Login fails on mobile
+   🏷️  Labels        : `bug`, `high`
+   📝 Description   : Steps: 1. Open app on iOS 2. Tap login 3. App crashes
+
+Reply yes to confirm, or no to cancel.
+```
+
+---
+
+### `confirm_open_bug`
+Creates the bug issue on GitHub after the user confirms.
+
+**Input:**
+- `title` — same title as passed to `open_bug`
+- `description` — same description as passed to `open_bug`
+- `extra_labels` *(optional)* — same extra labels as passed to `open_bug`
+
+**Example call:**
+```
+confirm_open_bug(title="Login fails on mobile", description="Steps: 1. Open app on iOS 2. Tap login 3. App crashes", extra_labels="high")
+```
+
+**Example response:**
+```
+✅ Bug report created!
+   🐛 Issue #55 : Login fails on mobile
+   🏷️  Labels    : bug, high
+   🔗 URL        : https://github.com/owner/repo/issues/55
+```
+
+---
+
 ## Setup
 
 ### 1. Install dependencies

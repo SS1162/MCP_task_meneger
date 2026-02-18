@@ -590,6 +590,97 @@ async def find_similar_bug_or_code(query: str) -> str:
     return "\n".join(parts) if parts else f"No similar results found for: `{query}`"
 
 
+@mcp.tool()
+async def open_bug(title: str, description: str, extra_labels: str = "") -> str:
+    """
+    Open a new bug report on GitHub Issues.
+    Shows a permission prompt first — then call confirm_open_bug to create it.
+
+    Args:
+        title:        Short title for the bug (e.g. "Login fails on mobile")
+        description:  Full description — steps to reproduce, expected vs actual behaviour
+        extra_labels: Optional comma-separated extra labels (e.g. "high,frontend")
+    """
+    missing = _missing_creds()
+    if missing:
+        return _cred_prompt(missing[0])
+
+    if not title.strip():
+        return "❌ Please provide a non-empty bug title."
+    if not description.strip():
+        return "❌ Please provide a non-empty bug description."
+
+    labels = ["bug"]
+    for lbl in extra_labels.split(","):
+        lbl = lbl.strip()
+        if lbl and lbl not in labels:
+            labels.append(lbl)
+
+    labels_display = ", ".join(f"`{l}`" for l in labels)
+    preview = description[:120] + ("..." if len(description) > 120 else "")
+
+    return (
+        f"⚠️  **Permission required** — I am about to:\n"
+        f"   🐛 Create issue  : {title}\n"
+        f"   🏷️  Labels        : {labels_display}\n"
+        f"   📝 Description   : {preview}\n\n"
+        f"Reply **yes** to confirm, or **no** to cancel.\n"
+        f"_(After confirming, call `confirm_open_bug` with the same title, description, and extra_labels)_"
+    )
+
+
+@mcp.tool()
+async def confirm_open_bug(title: str, description: str, extra_labels: str = "") -> str:
+    """
+    Create the bug report on GitHub after the user confirms.
+
+    Args:
+        title:        Short title for the bug
+        description:  Full description of the bug
+        extra_labels: Optional comma-separated extra labels (e.g. "high,frontend")
+    """
+    missing = _missing_creds()
+    if missing:
+        return _cred_prompt(missing[0])
+
+    if not title.strip():
+        return "❌ Please provide a non-empty bug title."
+    if not description.strip():
+        return "❌ Please provide a non-empty bug description."
+
+    repo = _cfg("GITHUB_REPO")
+    labels = ["bug"]
+    for lbl in extra_labels.split(","):
+        lbl = lbl.strip()
+        if lbl and lbl not in labels:
+            labels.append(lbl)
+
+    try:
+        token = await _get_token()
+
+        label_colors = {
+            "bug": "d73a4a", "high": "e11d48", "frontend": "bfd4f2",
+            "backend": "0075ca", "in-progress": "0075ca", "critical": "b60205",
+        }
+        for lbl in labels:
+            await _ensure_label(repo, token, lbl, label_colors.get(lbl, "ededed"))
+
+        issue = await _gh("post", f"/repos/{repo}/issues", token, json={
+            "title": title.strip(),
+            "body":  description.strip(),
+            "labels": labels,
+        })
+
+        return (
+            f"✅ Bug report created!\n"
+            f"   🐛 Issue #{issue['number']} : {issue['title']}\n"
+            f"   🏷️  Labels         : {', '.join(labels)}\n"
+            f"   🔗 URL             : {issue['html_url']}"
+        )
+    except Exception as exc:
+        return f"❌ Error creating bug report: {exc}"
+
+
 # ─── ENTRY POINT ─────────────────────────────────────────────────────────────
 
 def main():
